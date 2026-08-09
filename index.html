@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>文節速読リーダー</title>
+<style>
+  :root{
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  body{
+    margin: 0;
+    background: #ffffff;
+    color: #1a1a1a;
+    font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 24px 16px 48px;
+  }
+  h1{
+    font-size: 15px;
+    font-weight: 600;
+    color: #444;
+    margin: 0 0 20px;
+  }
+  .panel{
+    width: 100%;
+    max-width: 640px;
+  }
+
+  /* ---- 読み込みエリア ---- */
+  fieldset{
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 12px 14px 14px;
+    margin: 0 0 14px;
+  }
+  legend{
+    font-size: 12px;
+    color: #666;
+    padding: 0 6px;
+  }
+  .presets{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  button{
+    font: inherit;
+    cursor: pointer;
+  }
+  .presets button{
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 13px;
+    color: #333;
+  }
+  .presets button:hover{ background: #f4f4f4; }
+
+  textarea{
+    width: 100%;
+    height: 70px;
+    resize: vertical;
+    font-size: 13px;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-family: inherit;
+  }
+  .row{
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .row input[type=text]{
+    flex: 1;
+    font-size: 13px;
+    padding: 7px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+  .row button, .load-btn{
+    background: #1a1a1a;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 7px 14px;
+    font-size: 13px;
+  }
+  .row button:hover, .load-btn:hover{ background: #333; }
+  .note{
+    font-size: 11px;
+    color: #999;
+    margin-top: 6px;
+    line-height: 1.5;
+  }
+  .status{
+    font-size: 12px;
+    color: #b00020;
+    margin-top: 6px;
+    min-height: 1em;
+  }
+
+  /* ---- リーダー本体 ---- */
+  .reader{
+    border: 1px solid #eee;
+    border-radius: 6px;
+    padding: 40px 20px;
+    text-align: center;
+    margin-bottom: 14px;
+  }
+  .display{
+    font-size: 44px;
+    line-height: 1.4;
+    min-height: 1.4em;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+  .progress-wrap{
+    max-width: 640px;
+    width: 100%;
+    margin-bottom: 4px;
+  }
+  .progress-bar{
+    height: 3px;
+    background: #eee;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .progress-bar > div{
+    height: 100%;
+    width: 0%;
+    background: #1a1a1a;
+  }
+  .progress-num{
+    font-size: 11px;
+    color: #999;
+    text-align: right;
+    margin-top: 4px;
+  }
+
+  /* ---- 操作エリア ---- */
+  .controls{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 18px;
+  }
+  .controls button{
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 8px 14px;
+    font-size: 13px;
+    color: #333;
+    min-width: 44px;
+  }
+  .controls button:hover{ background: #f4f4f4; }
+  #playBtn{
+    background: #1a1a1a;
+    color: #fff;
+    border-color: #1a1a1a;
+    min-width: 72px;
+  }
+  #playBtn:hover{ background: #333; }
+
+  .speed-row{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 16px;
+    font-size: 12px;
+    color: #666;
+  }
+  .speed-row input[type=range]{ flex: 1; }
+  .speed-row span{ min-width: 78px; text-align: right; }
+</style>
+</head>
+<body>
+
+  <h1>文節速読リーダー（BudouXによる文節分割・RSVP方式）</h1>
+
+  <div class="panel">
+    <fieldset>
+      <legend>テキストを読み込む</legend>
+      <div class="presets">
+        <button type="button" data-preset="merosu">走れメロス（太宰治）</button>
+        <button type="button" data-preset="rashomon">羅生門（芥川龍之介）</button>
+        <button type="button" data-preset="yumejuya">夢十夜（夏目漱石）</button>
+      </div>
+      <textarea id="pasteArea" placeholder="ここにテキストを貼り付けてもOK"></textarea>
+      <div class="row">
+        <input type="text" id="urlInput" placeholder="raw.githubusercontent.com の青空文庫テキストURL（任意）">
+        <button type="button" id="urlLoadBtn">読み込む</button>
+      </div>
+      <div class="row">
+        <button type="button" id="applyPasteBtn" class="load-btn">貼り付けたテキストを使う</button>
+      </div>
+      <div class="note">プリセットは <code>levelevel/AozoraTxt</code>（GitHub）から取得し、ルビ・入力者注記を自動除去しています。URL欄には同リポジトリの raw ファイルURLを貼ってください（CORSの都合上、他ドメインは読み込めない場合があります）。</div>
+      <div class="status" id="statusMsg"></div>
+    </fieldset>
+  </div>
+
+  <div class="panel reader">
+    <div class="display" id="display">テキストを読み込んでください</div>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-bar"><div id="progressFill"></div></div>
+    <div class="progress-num" id="progressNum">0 / 0</div>
+  </div>
+
+  <div class="panel">
+    <div class="controls">
+      <button type="button" id="prevBtn">◀ 戻る</button>
+      <button type="button" id="playBtn">再生</button>
+      <button type="button" id="nextBtn">進む ▶</button>
+    </div>
+    <div class="speed-row">
+      <label for="speedRange">速度</label>
+      <input type="range" id="speedRange" min="200" max="1400" step="50" value="600">
+      <span id="speedLabel">600 文字/分</span>
+    </div>
+  </div>
+
+<script type="module">
+import { Parser } from "https://cdn.jsdelivr.net/npm/budoux@0.9.0/module/parser.js";
+import { model } from "https://cdn.jsdelivr.net/npm/budoux@0.9.0/module/data/models/ja.js";
+
+const parser = new Parser(model);
+
+const PRESETS = {
+  merosu:   "https://raw.githubusercontent.com/levelevel/AozoraTxt/master/person_utf8/000035/1567_ruby_utf8_hashire_merosu.txt",
+  rashomon: "https://raw.githubusercontent.com/levelevel/AozoraTxt/master/person_utf8/000879/127_ruby_utf8_rashomon.txt",
+  yumejuya: "https://raw.githubusercontent.com/levelevel/AozoraTxt/master/person_utf8/000148/799_ruby_utf8_yume_juya.txt",
+};
+
+const displayEl = document.getElementById("display");
+const statusEl = document.getElementById("statusMsg");
+const progressFill = document.getElementById("progressFill");
+const progressNum = document.getElementById("progressNum");
+const playBtn = document.getElementById("playBtn");
+const prevBtn = document.getElementById("prevBtn");
+const nextBtn = document.getElementById("nextBtn");
+const speedRange = document.getElementById("speedRange");
+const speedLabel = document.getElementById("speedLabel");
+const pasteArea = document.getElementById("pasteArea");
+
+let chunks = [];
+let index = 0;
+let playing = false;
+let timerId = null;
+
+// ---- 青空文庫記法の除去 ----
+function parseAozoraText(raw) {
+  const lines = raw.split(/\r\n|\n/);
+  const sepIdx = [];
+  lines.forEach((l, i) => { if (/^-{20,}$/.test(l.trim())) sepIdx.push(i); });
+
+  let bodyStart = 0;
+  if (sepIdx.length >= 2) bodyStart = sepIdx[1] + 1;
+
+  let bodyEnd = lines.length;
+  for (let i = bodyStart; i < lines.length; i++) {
+    if (/^底本/.test(lines[i].trim())) { bodyEnd = i; break; }
+  }
+
+  let body = lines.slice(bodyStart, bodyEnd).join("\n");
+  body = body.replace(/｜/g, "");
+  body = body.replace(/《[^》]*》/g, "");
+  body = body.replace(/［＃[^］]*］/g, "");
+  body = body.replace(/\n{3,}/g, "\n\n").trim();
+  return body;
+}
+
+// ---- 文節チャンクの構築（BudouXで分割。単語1点への固定整列は行わない） ----
+function buildChunks(text) {
+  const paragraphs = text.split(/\n+/).map(p => p.trim()).filter(Boolean);
+  const result = [];
+  for (const p of paragraphs) {
+    for (const seg of parser.parse(p)) {
+      if (seg.trim()) result.push(seg);
+    }
+    result.push(null); // 段落の区切り(表示は空白のポーズ)
+  }
+  while (result.length && result[result.length - 1] === null) result.pop();
+  return result;
+}
+
+function setText(rawText, { isAozora }) {
+  const text = isAozora ? parseAozoraText(rawText) : rawText;
+  chunks = buildChunks(text);
+  index = 0;
+  pause();
+  updateDisplay();
+  setStatus("");
+}
+
+function setStatus(msg, isError) {
+  statusEl.textContent = msg;
+  statusEl.style.color = isError ? "#b00020" : "#666";
+}
+
+function updateDisplay() {
+  const total = chunks.length;
+  if (total === 0) {
+    displayEl.textContent = "テキストを読み込んでください";
+    progressFill.style.width = "0%";
+    progressNum.textContent = "0 / 0";
+    return;
+  }
+  const cur = chunks[index];
+  displayEl.textContent = cur === null ? "" : cur;
+  progressFill.style.width = `${Math.round((index / (total - 1 || 1)) * 100)}%`;
+  progressNum.textContent = `${index + 1} / ${total}`;
+}
+
+function charsPerMinute() { return Number(speedRange.value); }
+
+function durationForChunk(chunk) {
+  const cpm = charsPerMinute();
+  const charsPerSec = cpm / 60;
+  const len = chunk === null ? 3 : Math.max(chunk.length, 1);
+  const ms = (len / charsPerSec) * 1000;
+  return Math.max(ms, 60); // 短すぎるチラつきを防止
+}
+
+function step() {
+  if (!playing) return;
+  if (index >= chunks.length - 1) { pause(); return; }
+  index += 1;
+  updateDisplay();
+  timerId = setTimeout(step, durationForChunk(chunks[index]));
+}
+
+function play() {
+  if (chunks.length === 0) { setStatus("先にテキストを読み込んでください", true); return; }
+  if (index >= chunks.length - 1) index = 0;
+  playing = true;
+  playBtn.textContent = "一時停止";
+  timerId = setTimeout(step, durationForChunk(chunks[index]));
+}
+
+function pause() {
+  playing = false;
+  playBtn.textContent = "再生";
+  if (timerId) { clearTimeout(timerId); timerId = null; }
+}
+
+playBtn.addEventListener("click", () => playing ? pause() : play());
+prevBtn.addEventListener("click", () => { pause(); index = Math.max(0, index - 1); updateDisplay(); });
+nextBtn.addEventListener("click", () => { pause(); index = Math.min(chunks.length - 1, index + 1); updateDisplay(); });
+
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "TEXTAREA" || e.target.tagName === "INPUT") return;
+  if (e.code === "Space") { e.preventDefault(); playing ? pause() : play(); }
+  if (e.code === "ArrowRight") { pause(); index = Math.min(chunks.length - 1, index + 1); updateDisplay(); }
+  if (e.code === "ArrowLeft") { pause(); index = Math.max(0, index - 1); updateDisplay(); }
+});
+
+speedRange.addEventListener("input", () => {
+  speedLabel.textContent = `${speedRange.value} 文字/分`;
+});
+
+document.getElementById("applyPasteBtn").addEventListener("click", () => {
+  const t = pasteArea.value.trim();
+  if (!t) { setStatus("テキストが空です", true); return; }
+  setText(t, { isAozora: false });
+});
+
+async function loadFromUrl(url) {
+  setStatus("読み込み中…");
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    setText(text, { isAozora: true });
+  } catch (err) {
+    setStatus(`読み込みに失敗しました（${err.message}）。CORSの制限がかかっているドメインの可能性があります。`, true);
+  }
+}
+
+document.querySelectorAll(".presets button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const key = btn.dataset.preset;
+    loadFromUrl(PRESETS[key]);
+  });
+});
+
+document.getElementById("urlLoadBtn").addEventListener("click", () => {
+  const url = document.getElementById("urlInput").value.trim();
+  if (!url) { setStatus("URLを入力してください", true); return; }
+  loadFromUrl(url);
+});
+</script>
+</body>
+</html>
