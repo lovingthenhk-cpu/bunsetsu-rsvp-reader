@@ -174,7 +174,8 @@
     color: #444;
   }
   .fulltext rt{ font-size: 0.55em; color: #888; }
-  .fulltext .chunk{ padding: 1px 0; }
+  .fulltext .chunk{ padding: 1px 0; cursor: pointer; user-select: none; }
+  .fulltext .chunk:hover{ background: #f2f2f2; }
   .fulltext .chunk.current{
     background: #fff1a8;
     border-radius: 2px;
@@ -526,9 +527,10 @@ function step() {
   timerId = setTimeout(step, durationForChunk(chunks[index]));
 }
 
-function play() {
+function play(fromIndex) {
   if (chunks.length === 0) { setStatus("先にテキストを読み込んでください", true); return; }
-  if (index >= chunks.length - 1) index = 0;
+  if (fromIndex !== undefined) index = fromIndex;
+  else if (index >= chunks.length - 1) index = 0;
   playing = true;
   playBtn.textContent = "一時停止";
   updateDisplay();
@@ -585,6 +587,16 @@ document.getElementById("urlLoadBtn").addEventListener("click", () => {
   const url = document.getElementById("urlInput").value.trim();
   if (!url) { setStatus("URLを入力してください", true); return; }
   loadFromUrl(url);
+});
+
+// 全文表示パネルをダブルクリックすると、その文節から再生を開始する
+fullTextEl.addEventListener("dblclick", (e) => {
+  const el = e.target.closest(".chunk");
+  if (!el) return;
+  const idx = Number(el.dataset.idx);
+  if (Number.isNaN(idx)) return;
+  pause();
+  play(idx);
 });
 </script>
 </body>
