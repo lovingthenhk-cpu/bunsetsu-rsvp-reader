@@ -5,9 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>文節速読リーダー</title>
 <style>
-  :root{
-    color-scheme: light;
-  }
+  :root{ color-scheme: light; }
   * { box-sizing: border-box; }
   body{
     margin: 0;
@@ -49,10 +47,7 @@
     gap: 8px;
     margin-bottom: 10px;
   }
-  button{
-    font: inherit;
-    cursor: pointer;
-  }
+  button{ font: inherit; cursor: pointer; }
   .presets button{
     background: #fff;
     border: 1px solid #ccc;
@@ -73,11 +68,7 @@
     border-radius: 4px;
     font-family: inherit;
   }
-  .row{
-    display: flex;
-    gap: 8px;
-    margin-top: 8px;
-  }
+  .row{ display: flex; gap: 8px; margin-top: 8px; }
   .row input[type=text]{
     flex: 1;
     font-size: 13px;
@@ -94,20 +85,10 @@
     font-size: 13px;
   }
   .row button:hover, .load-btn:hover{ background: #333; }
-  .note{
-    font-size: 11px;
-    color: #999;
-    margin-top: 6px;
-    line-height: 1.5;
-  }
-  .status{
-    font-size: 12px;
-    color: #b00020;
-    margin-top: 6px;
-    min-height: 1em;
-  }
+  .note{ font-size: 11px; color: #999; margin-top: 6px; line-height: 1.5; }
+  .status{ font-size: 12px; color: #b00020; margin-top: 6px; min-height: 1em; }
 
-  /* ---- リーダー本体 ---- */
+  /* ---- リーダー本体(RSVP表示) ---- */
   .reader{
     border: 1px solid #eee;
     border-radius: 6px;
@@ -117,31 +98,21 @@
   }
   .display{
     font-size: 44px;
-    line-height: 1.4;
-    min-height: 1.4em;
+    line-height: 1.6;
+    min-height: 1.6em;
     word-break: keep-all;
     overflow-wrap: anywhere;
   }
-  .progress-wrap{
-    max-width: 640px;
-    width: 100%;
-    margin-bottom: 4px;
-  }
-  .progress-bar{
-    height: 3px;
-    background: #eee;
-    border-radius: 2px;
-    overflow: hidden;
-  }
-  .progress-bar > div{
-    height: 100%;
-    width: 0%;
-    background: #1a1a1a;
-  }
+  .display rt{ font-size: 0.38em; }
+
+  .progress-wrap{ width: 100%; margin-bottom: 4px; }
+  .progress-bar{ height: 3px; background: #eee; border-radius: 2px; overflow: hidden; }
+  .progress-bar > div{ height: 100%; width: 0%; background: #1a1a1a; }
   .progress-num{
+    display: flex;
+    justify-content: space-between;
     font-size: 11px;
     color: #999;
-    text-align: right;
     margin-top: 4px;
   }
 
@@ -181,6 +152,34 @@
   }
   .speed-row input[type=range]{ flex: 1; }
   .speed-row span{ min-width: 78px; text-align: right; }
+
+  /* ---- 全文表示パネル ---- */
+  .fulltext-wrap{
+    margin-top: 22px;
+  }
+  .fulltext-wrap summary{
+    font-size: 12px;
+    color: #666;
+    cursor: pointer;
+    margin-bottom: 8px;
+  }
+  .fulltext{
+    max-height: 260px;
+    overflow-y: auto;
+    border: 1px solid #eee;
+    border-radius: 6px;
+    padding: 16px 18px;
+    font-size: 15px;
+    line-height: 2.1;
+    color: #444;
+  }
+  .fulltext rt{ font-size: 0.55em; color: #888; }
+  .fulltext .chunk{ padding: 1px 0; }
+  .fulltext .chunk.current{
+    background: #fff1a8;
+    border-radius: 2px;
+    color: #1a1a1a;
+  }
 </style>
 </head>
 <body>
@@ -195,7 +194,7 @@
         <button type="button" data-preset="rashomon">羅生門（芥川龍之介）</button>
         <button type="button" data-preset="yumejuya">夢十夜（夏目漱石）</button>
       </div>
-      <textarea id="pasteArea" placeholder="ここにテキストを貼り付けてもOK"></textarea>
+      <textarea id="pasteArea" placeholder="ここにテキストを貼り付けてもOK（青空文庫記法のルビにも対応）"></textarea>
       <div class="row">
         <input type="text" id="urlInput" placeholder="raw.githubusercontent.com の青空文庫テキストURL（任意）">
         <button type="button" id="urlLoadBtn">読み込む</button>
@@ -203,7 +202,7 @@
       <div class="row">
         <button type="button" id="applyPasteBtn" class="load-btn">貼り付けたテキストを使う</button>
       </div>
-      <div class="note">プリセットは <code>levelevel/AozoraTxt</code>（GitHub）から取得し、ルビ・入力者注記を自動除去しています。URL欄には同リポジトリの raw ファイルURLを貼ってください（CORSの都合上、他ドメインは読み込めない場合があります）。</div>
+      <div class="note">プリセットは <code>levelevel/AozoraTxt</code>（GitHub）から取得し、入力者注記を自動除去、ルビは表示に利用します。URL欄には同リポジトリの raw ファイルURLを貼ってください（CORSの都合上、他ドメインは読み込めない場合があります）。</div>
       <div class="status" id="statusMsg"></div>
     </fieldset>
   </div>
@@ -212,9 +211,12 @@
     <div class="display" id="display">テキストを読み込んでください</div>
   </div>
 
-  <div class="progress-wrap">
+  <div class="panel progress-wrap">
     <div class="progress-bar"><div id="progressFill"></div></div>
-    <div class="progress-num" id="progressNum">0 / 0</div>
+    <div class="progress-num">
+      <span id="progressCount">0 / 0</span>
+      <span id="timeInfo">全体 0:00</span>
+    </div>
   </div>
 
   <div class="panel">
@@ -229,6 +231,11 @@
       <span id="speedLabel">600 文字/分</span>
     </div>
   </div>
+
+  <details class="panel fulltext-wrap" open>
+    <summary>全文表示（現在位置をハイライト）</summary>
+    <div class="fulltext" id="fullText"></div>
+  </details>
 
 <script type="module">
 import { Parser } from "https://cdn.jsdelivr.net/npm/budoux@0.9.0/module/parser.js";
@@ -245,21 +252,29 @@ const PRESETS = {
 const displayEl = document.getElementById("display");
 const statusEl = document.getElementById("statusMsg");
 const progressFill = document.getElementById("progressFill");
-const progressNum = document.getElementById("progressNum");
+const progressCount = document.getElementById("progressCount");
+const timeInfo = document.getElementById("timeInfo");
 const playBtn = document.getElementById("playBtn");
 const prevBtn = document.getElementById("prevBtn");
 const nextBtn = document.getElementById("nextBtn");
 const speedRange = document.getElementById("speedRange");
 const speedLabel = document.getElementById("speedLabel");
 const pasteArea = document.getElementById("pasteArea");
+const fullTextEl = document.getElementById("fullText");
 
+// chunks[i] は null（段落区切り）か、トークン配列（{type:'text',text} / {type:'ruby',base,reading}）
 let chunks = [];
 let index = 0;
 let playing = false;
 let timerId = null;
+let durations = [];   // durations[i] = chunks[i] の表示時間(ms)
+let suffixMs = [];     // suffixMs[i] = chunks[i..末尾] の合計時間(ms)
+let chunkElByIndex = new Map();
 
-// ---- 青空文庫記法の除去 ----
-function parseAozoraText(raw) {
+// ---------------------------------------------------------------
+// 青空文庫のヘッダー/フッター（凡例・底本情報）を除去
+// ---------------------------------------------------------------
+function stripAozoraHeaderFooter(raw) {
   const lines = raw.split(/\r\n|\n/);
   const sepIdx = [];
   lines.forEach((l, i) => { if (/^-{20,}$/.test(l.trim())) sepIdx.push(i); });
@@ -273,32 +288,168 @@ function parseAozoraText(raw) {
   }
 
   let body = lines.slice(bodyStart, bodyEnd).join("\n");
-  body = body.replace(/｜/g, "");
-  body = body.replace(/《[^》]*》/g, "");
   body = body.replace(/［＃[^］]*］/g, "");
   body = body.replace(/\n{3,}/g, "\n\n").trim();
   return body;
 }
 
-// ---- 文節チャンクの構築（BudouXで分割。単語1点への固定整列は行わない） ----
+// ---------------------------------------------------------------
+// 1段落分のテキストを「プレーン文字列トークン」と「ルビトークン」に分解
+// 例: "邪智暴虐《じゃちぼうぎゃく》" -> {type:'ruby', base:'邪智暴虐', reading:'じゃちぼうぎゃく'}
+// "｜"（ルビの開始位置指定）があればそれを優先し、無ければ直前の連続する漢字をベースとみなす
+// ---------------------------------------------------------------
+const isKanji = ch => /[\u4E00-\u9FFF\u3005\u303B\u3007]/.test(ch);
+
+function tokenizeParagraph(text) {
+  const tokens = [];
+  let i = 0;
+  const n = text.length;
+  while (i < n) {
+    const rubyStart = text.indexOf("《", i);
+    if (rubyStart === -1) {
+      const rest = text.slice(i).replace(/｜/g, "");
+      if (rest) tokens.push({ type: "text", text: rest });
+      break;
+    }
+    const rubyEnd = text.indexOf("》", rubyStart);
+    if (rubyEnd === -1) {
+      const rest = text.slice(i).replace(/｜/g, "");
+      if (rest) tokens.push({ type: "text", text: rest });
+      break;
+    }
+    const reading = text.slice(rubyStart + 1, rubyEnd);
+    const between = text.slice(i, rubyStart);
+    const pipeIdx = between.lastIndexOf("｜");
+    let plainPart, base;
+    if (pipeIdx !== -1) {
+      plainPart = between.slice(0, pipeIdx).replace(/｜/g, "");
+      base = between.slice(pipeIdx + 1);
+    } else {
+      let k = between.length;
+      while (k > 0 && isKanji(between[k - 1])) k--;
+      plainPart = between.slice(0, k);
+      base = between.slice(k);
+    }
+    if (plainPart) tokens.push({ type: "text", text: plainPart });
+    if (base) tokens.push({ type: "ruby", base, reading });
+    i = rubyEnd + 1;
+  }
+  return tokens;
+}
+
+// トークン列を「ベース文字だけを並べたプレーン文字列」に投影し、
+// 各文字がどのトークンの何文字目に対応するかを記録する
+function projectPlain(tokens) {
+  let s = "";
+  const tokIdx = [];
+  const localOff = [];
+  tokens.forEach((tok, ti) => {
+    const piece = tok.type === "ruby" ? tok.base : tok.text;
+    for (let c = 0; c < piece.length; c++) { tokIdx.push(ti); localOff.push(c); }
+    s += piece;
+  });
+  return { s, tokIdx, localOff };
+}
+
+// BudouXの区切り位置をプレーン文字列上で計算し、ルビ語を分断しないようスナップしてから
+// トークン列を実際の文節チャンク（トークン配列の配列）に分割する
+function chunkTokens(tokens) {
+  const { s, tokIdx, localOff } = projectPlain(tokens);
+  if (s.length === 0) return [];
+
+  let boundaries = parser.parseBoundaries(s);
+  boundaries = boundaries.map(b => {
+    const tiBefore = tokIdx[b - 1];
+    if (b < s.length && tokIdx[b] === tiBefore && tokens[tiBefore].type === "ruby") {
+      let end = b;
+      while (end < s.length && tokIdx[end] === tiBefore) end++;
+      return end;
+    }
+    return b;
+  });
+  boundaries = [...new Set(boundaries)].sort((a, b) => a - b).filter(b => b > 0 && b < s.length);
+
+  const cuts = [0, ...boundaries, s.length];
+  const result = [];
+  for (let i = 0; i < cuts.length - 1; i++) {
+    const start = cuts[i], end = cuts[i + 1];
+    if (start >= end) continue;
+    const pieceTokens = [];
+    let p = start;
+    while (p < end) {
+      const ti = tokIdx[p];
+      const tok = tokens[ti];
+      if (tok.type === "ruby") {
+        pieceTokens.push(tok);
+        while (p < end && tokIdx[p] === ti) p++;
+      } else {
+        const lo = localOff[p];
+        let q = p;
+        while (q < end && tokIdx[q] === ti) q++;
+        const hi = localOff[q - 1] + 1;
+        pieceTokens.push({ type: "text", text: tok.text.slice(lo, hi) });
+        p = q;
+      }
+    }
+    result.push(pieceTokens);
+  }
+  return result;
+}
+
 function buildChunks(text) {
   const paragraphs = text.split(/\n+/).map(p => p.trim()).filter(Boolean);
   const result = [];
   for (const p of paragraphs) {
-    for (const seg of parser.parse(p)) {
-      if (seg.trim()) result.push(seg);
-    }
+    const toks = tokenizeParagraph(p);
+    for (const c of chunkTokens(toks)) result.push(c);
     result.push(null); // 段落の区切り(表示は空白のポーズ)
   }
   while (result.length && result[result.length - 1] === null) result.pop();
   return result;
 }
 
+function escapeHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function chunkToHtml(chunk) {
+  if (chunk === null) return "";
+  return chunk.map(tok => tok.type === "ruby"
+    ? `<ruby>${escapeHtml(tok.base)}<rt>${escapeHtml(tok.reading)}</rt></ruby>`
+    : escapeHtml(tok.text)
+  ).join("");
+}
+
+function chunkCharLen(chunk) {
+  if (chunk === null) return 3;
+  return Math.max(chunk.reduce((a, t) => a + (t.type === "ruby" ? t.base.length : t.text.length), 0), 1);
+}
+
+// ---------------------------------------------------------------
+// 全文表示パネルの構築（現在位置ハイライト用にチャンクごとにspanで囲む）
+// ---------------------------------------------------------------
+function renderFullText() {
+  let html = "<p>";
+  chunks.forEach((c, i) => {
+    if (c === null) html += "</p><p>";
+    else html += `<span class="chunk" data-idx="${i}">${chunkToHtml(c)}</span>`;
+  });
+  html += "</p>";
+  fullTextEl.innerHTML = html;
+
+  chunkElByIndex = new Map();
+  fullTextEl.querySelectorAll(".chunk").forEach(el => {
+    chunkElByIndex.set(Number(el.dataset.idx), el);
+  });
+}
+
 function setText(rawText, { isAozora }) {
-  const text = isAozora ? parseAozoraText(rawText) : rawText;
+  const text = isAozora ? stripAozoraHeaderFooter(rawText) : rawText;
   chunks = buildChunks(text);
   index = 0;
   pause();
+  renderFullText();
+  computeDurations();
   updateDisplay();
   setStatus("");
 }
@@ -308,28 +459,63 @@ function setStatus(msg, isError) {
   statusEl.style.color = isError ? "#b00020" : "#666";
 }
 
-function updateDisplay() {
-  const total = chunks.length;
-  if (total === 0) {
-    displayEl.textContent = "テキストを読み込んでください";
-    progressFill.style.width = "0%";
-    progressNum.textContent = "0 / 0";
-    return;
-  }
-  const cur = chunks[index];
-  displayEl.textContent = cur === null ? "" : cur;
-  progressFill.style.width = `${Math.round((index / (total - 1 || 1)) * 100)}%`;
-  progressNum.textContent = `${index + 1} / ${total}`;
-}
-
+// ---------------------------------------------------------------
+// 所要時間の計算
+// ---------------------------------------------------------------
 function charsPerMinute() { return Number(speedRange.value); }
 
 function durationForChunk(chunk) {
-  const cpm = charsPerMinute();
-  const charsPerSec = cpm / 60;
-  const len = chunk === null ? 3 : Math.max(chunk.length, 1);
-  const ms = (len / charsPerSec) * 1000;
-  return Math.max(ms, 60); // 短すぎるチラつきを防止
+  const charsPerSec = charsPerMinute() / 60;
+  const len = chunkCharLen(chunk);
+  return Math.max((len / charsPerSec) * 1000, 60); // 短すぎるチラつきを防止
+}
+
+function computeDurations() {
+  durations = chunks.map(durationForChunk);
+  suffixMs = new Array(durations.length + 1).fill(0);
+  for (let i = durations.length - 1; i >= 0; i--) suffixMs[i] = suffixMs[i + 1] + durations[i];
+}
+
+function formatTime(ms) {
+  const totalSec = Math.max(Math.round(ms / 1000), 0);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+// ---------------------------------------------------------------
+// 表示更新
+// ---------------------------------------------------------------
+function updateDisplay() {
+  const total = chunks.length;
+
+  if (total === 0) {
+    displayEl.textContent = "テキストを読み込んでください";
+    progressFill.style.width = "0%";
+    progressCount.textContent = "0 / 0";
+    timeInfo.textContent = "全体 0:00";
+    return;
+  }
+
+  const cur = chunks[index];
+  displayEl.innerHTML = cur === null ? "" : chunkToHtml(cur);
+
+  progressFill.style.width = `${Math.round((index / (total - 1 || 1)) * 100)}%`;
+  progressCount.textContent = `${index + 1} / ${total}`;
+
+  const remaining = suffixMs[index] ?? 0;
+  const total_ms = suffixMs[0] ?? 0;
+  timeInfo.textContent = playing
+    ? `残り ${formatTime(remaining)}（全体 ${formatTime(total_ms)}）`
+    : `全体 ${formatTime(total_ms)}`;
+
+  const prevEl = fullTextEl.querySelector(".chunk.current");
+  if (prevEl) prevEl.classList.remove("current");
+  const curEl = chunkElByIndex.get(index);
+  if (curEl) {
+    curEl.classList.add("current");
+    curEl.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
 }
 
 function step() {
@@ -345,6 +531,7 @@ function play() {
   if (index >= chunks.length - 1) index = 0;
   playing = true;
   playBtn.textContent = "一時停止";
+  updateDisplay();
   timerId = setTimeout(step, durationForChunk(chunks[index]));
 }
 
@@ -352,6 +539,7 @@ function pause() {
   playing = false;
   playBtn.textContent = "再生";
   if (timerId) { clearTimeout(timerId); timerId = null; }
+  updateDisplay();
 }
 
 playBtn.addEventListener("click", () => playing ? pause() : play());
@@ -367,6 +555,8 @@ document.addEventListener("keydown", (e) => {
 
 speedRange.addEventListener("input", () => {
   speedLabel.textContent = `${speedRange.value} 文字/分`;
+  computeDurations();
+  updateDisplay();
 });
 
 document.getElementById("applyPasteBtn").addEventListener("click", () => {
@@ -388,10 +578,7 @@ async function loadFromUrl(url) {
 }
 
 document.querySelectorAll(".presets button").forEach(btn => {
-  btn.addEventListener("click", () => {
-    const key = btn.dataset.preset;
-    loadFromUrl(PRESETS[key]);
-  });
+  btn.addEventListener("click", () => loadFromUrl(PRESETS[btn.dataset.preset]));
 });
 
 document.getElementById("urlLoadBtn").addEventListener("click", () => {
