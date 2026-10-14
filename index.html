@@ -203,7 +203,7 @@
       <div class="row">
         <button type="button" id="applyPasteBtn" class="load-btn">貼り付けたテキストを使う</button>
       </div>
-      <div class="note">プリセットは <code>levelevel/AozoraTxt</code>（GitHub）から取得し、入力者注記を自動除去、ルビは表示に利用します。URL欄には同リポジトリの raw ファイルURLを貼ってください（CORSの都合上、他ドメインは読み込めない場合があります）。</div>
+      <div class="note">プリセットは青空文庫の作品をサイト内に収録しています。ルビは表示に利用し、入力者注記は除去します。URL欄にはHTTPSの公開テキストURLを入力できます（外部サイトはCORS制限により読み込めない場合があります）。</div>
       <div class="status" id="statusMsg"></div>
     </fieldset>
   </div>
@@ -239,15 +239,15 @@
   </details>
 
 <script type="module">
-import { Parser } from "https://cdn.jsdelivr.net/npm/budoux@0.9.0/module/parser.js";
-import { model } from "https://cdn.jsdelivr.net/npm/budoux@0.9.0/module/data/models/ja.js";
+import { Parser } from "./assets/budoux/parser.js";
+import { model } from "./assets/budoux/ja.js";
 
 const parser = new Parser(model);
 
 const PRESETS = {
-  merosu:   "https://raw.githubusercontent.com/levelevel/AozoraTxt/master/person_utf8/000035/1567_ruby_utf8_hashire_merosu.txt",
-  rashomon: "https://raw.githubusercontent.com/levelevel/AozoraTxt/master/person_utf8/000879/127_ruby_utf8_rashomon.txt",
-  yumejuya: "https://raw.githubusercontent.com/levelevel/AozoraTxt/master/person_utf8/000148/799_ruby_utf8_yume_juya.txt",
+  merosu:   "./assets/books/merosu.txt",
+  rashomon: "./assets/books/rashomon.txt",
+  yumejuya: "./assets/books/yumejuya.txt",
 };
 
 const displayEl = document.getElementById("display");
@@ -271,6 +271,9 @@ let timerId = null;
 let durations = [];   // durations[i] = chunks[i] の表示時間(ms)
 let suffixMs = [];     // suffixMs[i] = chunks[i..末尾] の合計時間(ms)
 let chunkElByIndex = new Map();
+let activeChunkEl = null;
+let requestSerial = 0;
+let activeLoadController = null;
 
 // ---------------------------------------------------------------
 // 青空文庫のヘッダー/フッター（凡例・底本情報）を除去
@@ -439,6 +442,7 @@ function renderFullText() {
   fullTextEl.innerHTML = html;
 
   chunkElByIndex = new Map();
+  activeChunkEl = null;
   fullTextEl.querySelectorAll(".chunk").forEach(el => {
     chunkElByIndex.set(Number(el.dataset.idx), el);
   });
@@ -446,9 +450,10 @@ function renderFullText() {
 
 function setText(rawText, { isAozora }) {
   const text = isAozora ? stripAozoraHeaderFooter(rawText) : rawText;
+  // 大きな本文を読み込んでも古いタイマーを残さない。
+  pause();
   chunks = buildChunks(text);
   index = 0;
-  pause();
   renderFullText();
   computeDurations();
   updateDisplay();
@@ -491,6 +496,8 @@ function updateDisplay() {
   const total = chunks.length;
 
   if (total === 0) {
+    if (activeChunkEl) activeChunkEl.classList.remove("current");
+    activeChunkEl = null;
     displayEl.textContent = "テキストを読み込んでください";
     progressFill.style.width = "0%";
     progressCount.textContent = "0 / 0";
@@ -510,12 +517,19 @@ function updateDisplay() {
     ? `残り ${formatTime(remaining)}（全体 ${formatTime(total_ms)}）`
     : `全体 ${formatTime(total_ms)}`;
 
-  const prevEl = fullTextEl.querySelector(".chunk.current");
-  if (prevEl) prevEl.classList.remove("current");
+  if (activeChunkEl) activeChunkEl.classList.remove("current");
   const curEl = chunkElByIndex.get(index);
+  activeChunkEl = curEl || null;
   if (curEl) {
     curEl.classList.add("current");
-    curEl.scrollIntoView({ block: "center", behavior: "smooth" });
+    // scrollIntoView は文節一覧だけでなくブラウザ画面全体まで動かしてしまう。
+    // 本文パネル内部のスクロールに限定し、RSVP表示を画面内に保つ。
+    if (fullTextEl.clientHeight && curEl.getClientRects().length) {
+      const outer = fullTextEl.getBoundingClientRect();
+      const inner = curEl.getBoundingClientRect();
+      const delta = inner.top + inner.height / 2 - outer.top - fullTextEl.clientHeight / 2;
+      if (Math.abs(delta) > 1) fullTextEl.scrollTop += delta;
+    }
   }
 }
 
@@ -529,6 +543,7 @@ function step() {
 
 function play(fromIndex) {
   if (chunks.length === 0) { setStatus("先にテキストを読み込んでください", true); return; }
+  if (timerId) clearTimeout(timerId);
   if (fromIndex !== undefined) index = fromIndex;
   else if (index >= chunks.length - 1) index = 0;
   playing = true;
@@ -546,12 +561,12 @@ function pause() {
 
 playBtn.addEventListener("click", () => playing ? pause() : play());
 prevBtn.addEventListener("click", () => { pause(); index = Math.max(0, index - 1); updateDisplay(); });
-nextBtn.addEventListener("click", () => { pause(); index = Math.min(chunks.length - 1, index + 1); updateDisplay(); });
+nextBtn.addEventListener("click", () => { if (!chunks.length) return; pause(); index = Math.min(chunks.length - 1, index + 1); updateDisplay(); });
 
 document.addEventListener("keydown", (e) => {
   if (e.target.tagName === "TEXTAREA" || e.target.tagName === "INPUT") return;
   if (e.code === "Space") { e.preventDefault(); playing ? pause() : play(); }
-  if (e.code === "ArrowRight") { pause(); index = Math.min(chunks.length - 1, index + 1); updateDisplay(); }
+  if (e.code === "ArrowRight" && chunks.length) { pause(); index = Math.min(chunks.length - 1, index + 1); updateDisplay(); }
   if (e.code === "ArrowLeft") { pause(); index = Math.max(0, index - 1); updateDisplay(); }
 });
 
@@ -564,18 +579,30 @@ speedRange.addEventListener("input", () => {
 document.getElementById("applyPasteBtn").addEventListener("click", () => {
   const t = pasteArea.value.trim();
   if (!t) { setStatus("テキストが空です", true); return; }
+  if (activeLoadController) activeLoadController.abort();
+  activeLoadController = null;
+  requestSerial++;
   setText(t, { isAozora: false });
 });
 
 async function loadFromUrl(url) {
+  // 連続クリックで古い応答が新しい作品を上書きしないようにする。
+  if (activeLoadController) activeLoadController.abort();
+  const serial = ++requestSerial;
+  const controller = new AbortController();
+  activeLoadController = controller;
   setStatus("読み込み中…");
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: controller.signal });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const text = await res.text();
+    if (serial !== requestSerial) return;
     setText(text, { isAozora: true });
   } catch (err) {
-    setStatus(`読み込みに失敗しました（${err.message}）。CORSの制限がかかっているドメインの可能性があります。`, true);
+    if (serial !== requestSerial || err.name === "AbortError") return;
+    setStatus(`読み込みに失敗しました（${err.message}）。外部URLの場合、CORS制限や接続障害を確認してください。`, true);
+  } finally {
+    if (serial === requestSerial) activeLoadController = null;
   }
 }
 
@@ -586,6 +613,12 @@ document.querySelectorAll(".presets button").forEach(btn => {
 document.getElementById("urlLoadBtn").addEventListener("click", () => {
   const url = document.getElementById("urlInput").value.trim();
   if (!url) { setStatus("URLを入力してください", true); return; }
+  try {
+    if (new URL(url).protocol !== "https:") throw new Error("HTTPSのみ対応しています");
+  } catch {
+    setStatus("HTTPSで始まる正しいURLを入力してください", true);
+    return;
+  }
   loadFromUrl(url);
 });
 
